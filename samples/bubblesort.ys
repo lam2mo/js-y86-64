@@ -1,0 +1,116 @@
+# Necessary for compatibility with simulators
+    .pos 0 code
+    jmp _start
+
+# Defines the entry point for the Mini-ELF format
+    .pos 0x100 code
+_start:
+    irmovq _stack, %rsp  # Setup the stack pointer
+    call main
+    halt
+
+main:
+    irmovq array, %rdi
+    irmovq array_len, %rsi
+    mrmovq (%rsi), %rsi
+    call sort
+    ret
+
+sort:
+    # Based on the following bubblesort implementation:
+    # void sort(uint64 *nums, size_t len) {
+    #     for (int i = 0; i < len - 1; i++)
+    #         for (int j = 0; j < len - i - 1; j++)
+    #             if (nums[j] > nums[j + 1])
+    #                 swap(nums + j, nums + j + 1);
+    # }
+
+    # Borrow some registers
+    pushq  %r14
+    pushq  %r13
+    pushq  %r12
+
+    # keep $1 and $8 in registers
+    irmovq $1,   %rdx
+    irmovq $8,   %r11
+
+    irmovq $0,   %rax
+
+begin_outer:
+    irmovq $0,   %rcx
+    rrmovq %rdi, %r8
+
+begin_inner:
+    # Get &array[j] and &array[j + 1]
+    rrmovq %r8,  %r9
+    addq   %r11, %r9
+
+    # Get array[j] and array[j + 1]
+    mrmovq (%r8),  %r14  # array[j]
+    mrmovq (%r9),  %r12  # array[j + 1]
+
+    # Save array[j] in case of swap
+    rrmovq %r14, %r13
+
+    # skip swap if array[j] < array[j + 1]
+    subq   %r12,   %r14  # array[j] - array[j + 1]
+    jl skip_swap
+
+    # Swap
+    rmmovq %r12, (%r8)
+    rmmovq %r13, (%r9)
+
+skip_swap:
+inner_update:
+    # Increment j and &array[j]
+    rrmovq %r9,  %r8
+    addq   %rdx, %rcx
+
+inner_check:
+    # Check j < len - i - 1
+    rrmovq %rsi, %r10
+    subq   %rax, %r10
+    subq   %rdx, %r10
+    subq   %rcx, %r10
+    jg begin_inner
+
+outer_update:
+    # i++
+    addq   %rdx, %rax
+
+outer_check:
+    # Check i < len - 1
+    rrmovq %rsi, %r10
+    subq   %rdx, %r10
+    subq   %rax, %r10
+    jg begin_outer
+
+end:
+    # Restore borrowed registers
+    popq %r12
+    popq %r13
+    popq %r14
+
+    ret
+
+# Allocate a simple array to sort
+# 0x400 should be far enough away from both the code and the stack
+    .pos 0x400 data
+    .align 8
+array:
+    .quad 0x47
+    .quad 0x4F
+    .quad 0x20
+    .quad 0x44
+    .quad 0x55
+    .quad 0x4B
+    .quad 0x45
+    .quad 0x53
+    .quad 0x21
+array_len:
+    .quad 9
+
+# Initialize the stack
+    .pos 0xf00 data
+_stack:
+
