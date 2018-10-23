@@ -2,6 +2,7 @@ var INSTR = {};
 
 INSTR[0] = function () {
 	STAT = 'HLT';
+	PC = new Long(0);
 	//print("Program halted");
 };
 INSTR[1] = function () {
